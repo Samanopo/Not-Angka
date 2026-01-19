@@ -52,7 +52,7 @@ const CipherNote = ({ note, x, y, isSelected, isPlaying, onClick }) => {
       <text x={x} y={y} fontSize={fontSize} fontFamily="monospace" textAnchor="middle" fontWeight="bold" fill={numberColor}>{note.isRest ? "0" : note.pitch}</text>
       {!note.isRest && note.accidental === 'sharp' && (<line x1={x - 8} y1={y + 6} x2={x + 8} y2={y - 14} stroke={numberColor} strokeWidth="2.5" opacity="0.8" />)}
       {!note.isRest && note.accidental === 'flat' && (<line x1={x - 8} y1={y - 14} x2={x + 8} y2={y + 6} stroke={numberColor} strokeWidth="2.5" opacity="0.8" />)}
-      {!note.isRest && note.octave > 0 && <circle cx={x} cy={y - 18} r="2.5" fill={numberColor} />}
+      {!note.isRest && note.octave > 0 && <circle cx={x} cy={y - 22} r="2.5" fill={numberColor} />}
       {!note.isRest && note.octave < 0 && <circle cx={x} cy={y + 10} r="2.5" fill={numberColor} />}
       {note.staccato && !note.isRest && (<circle cx={x} cy={staccatoY} r="2.5" fill={numberColor} />)}
       {note.beamBreak && isSelected && (<line x1={x - 15} y1={y-40} x2={x-15} y2={y-20} stroke="red" strokeWidth="1" strokeDasharray="2,2" />)}
@@ -330,9 +330,9 @@ function App() {
                 <button onClick={() => changeOctave(1)} style={{ padding: "2px 8px" }}>⬆</button>
                 <button onClick={() => changeOctave(-1)} style={{ padding: "2px 8px" }}>⬇</button>
                 <div style={{width: "1px", background:"#bbb", margin: "0 5px"}}></div>
-                <button onClick={() => changeDuration(1)} style={{ padding: "2px 8px" }}>1</button>
-                <button onClick={() => changeDuration(0.5)} style={{ padding: "2px 8px" }}>1/2</button>
-                <button onClick={() => changeDuration(0.25)} style={{ padding: "2px 8px" }}>1/4</button>
+                <button onClick={() => changeDuration(1)} style={{ padding: "2px 8px" }}>Normal</button>
+                <button onClick={() => changeDuration(0.5)} style={{ padding: "2px 8px" }}>1/8</button>
+                <button onClick={() => changeDuration(0.25)} style={{ padding: "2px 8px" }}>1/16</button>
                 <button onClick={toggleBeamBreak} style={{ padding: "2px 8px", cursor: "pointer", background: currentNotes[selectedIndex]?.beamBreak ? "#FFAB91" : "#f0f0f0", fontWeight: "bold" }} title="Putus Bendera">||</button>
                 <div style={{width: "1px", background:"#bbb", margin: "0 5px"}}></div>
                 <button onClick={toggleSlur} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.slur ? "#BBDEFB" : "#f0f0f0" }}>⌒</button>
