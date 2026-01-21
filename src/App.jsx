@@ -1,34 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as Tone from 'tone';
 import html2canvas from 'html2canvas';
-import { Midi } from '@tonejs/midi'; // IMPORT LIBRARY MIDI BARU
+import { Midi } from '@tonejs/midi';
 
 // --- KONFIGURASI VISUAL ---
 const CONFIG = {
-  baseSpacing: 60,
-  lineHeight: 180,
-  canvasWidth: 900,
-  startX: 60,
-  startY: 100
+  baseSpacing: 55,     
+  voiceSpacing: 80,    
+  systemSpacing: 150,  
+  startX: 130, // <--- UBAH INI: Memberi jarak lebih lebar untuk label SATB (tadinya 80)
+  startY: 80
 };
 
-// --- DATA NADA & MIDI ---
-const KEY_SIGNATURES = {
-  'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 
-  'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11
+// --- KONFIGURASI BIRAMA ---
+const TIME_CONFIG = {
+  "4/4": { limit: 4, groupSize: 4 }, 
+  "3/4": { limit: 3, groupSize: 6 }, 
+  "2/4": { limit: 2, groupSize: 4 }, 
+  "6/8": { limit: 3, groupSize: 3 }, 
+  "2/2": { limit: 4, groupSize: 4 }  
 };
 
-// General MIDI Program Numbers (Kode Instrumen Standar Internasional)
-const GM_INSTRUMENTS = {
-  'Piano': 0,   // Acoustic Grand Piano
-  'Organ': 19,  // Church Organ
-  'Violin': 40, // Violin
-  'Flute': 73,  // Flute
-  'Bass': 32,   // Acoustic Bass
-  'Synth': 80   // Lead 1 (Square)
-};
+// --- DATA NADA ---
+const KEY_SIGNATURES = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
+const GM_INSTRUMENTS = { 'Piano': 0, 'Organ': 19, 'Violin': 40, 'Flute': 73, 'Bass': 32, 'Synth': 80 };
 
-// --- INSTRUMEN AUDIO (BROWSER SOUND) ---
+// --- INSTRUMEN AUDIO ---
 const INSTRUMENTS = {
   'Piano': { type: Tone.Synth, options: { oscillator: { type: 'triangle' }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 } }, octaveOffset: 0 },
   'Organ': { type: Tone.AMSynth, options: { harmonicity: 3, modulationIndex: 2, envelope: { attack: 0.1, decay: 0.1, sustain: 1, release: 0.5 } }, octaveOffset: 0 },
@@ -39,304 +36,387 @@ const INSTRUMENTS = {
 };
 
 // --- KOMPONEN NOT ---
-const CipherNote = ({ note, x, y, isSelected, isPlaying, onClick }) => {
+const CipherNote = ({ note, x, y, isSelected, isPlaying, onClick, isActiveTrack }) => {
   const fontSize = 24;
-  const staccatoY = y - 45; 
-  let numberColor = "black";
-  if (isSelected) numberColor = "#2E7D32"; 
+  const staccatoY = y - 40; 
+  
+  let numberColor = isActiveTrack ? "black" : "#bbb";
+  let boxFill = "transparent";
+  let boxStroke = "transparent";
+
+  if (isSelected && isActiveTrack) {
+      numberColor = "#2E7D32"; 
+      boxFill = "rgba(76, 175, 80, 0.1)";
+      boxStroke = "#4CAF50";
+  }
   if (isPlaying) numberColor = "#D50000"; 
+
+  const isNumber = typeof note.pitch === 'number';
 
   return (
     <g onClick={onClick} style={{ cursor: "pointer" }}>
-      <rect x={x - 20} y={y - 65} width="40" height="120" fill={isSelected ? "rgba(76, 175, 80, 0.1)" : "transparent"} stroke={isSelected ? "#4CAF50" : "transparent"} strokeWidth="1" rx="4" className="editor-ui"/>
-      <text x={x} y={y} fontSize={fontSize} fontFamily="monospace" textAnchor="middle" fontWeight="bold" fill={numberColor}>{note.isRest ? "0" : note.pitch}</text>
-      {!note.isRest && note.accidental === 'sharp' && (<line x1={x - 8} y1={y + 6} x2={x + 8} y2={y - 14} stroke={numberColor} strokeWidth="2.5" opacity="0.8" />)}
-      {!note.isRest && note.accidental === 'flat' && (<line x1={x - 8} y1={y - 14} x2={x + 8} y2={y + 6} stroke={numberColor} strokeWidth="2.5" opacity="0.8" />)}
-      {!note.isRest && note.octave > 0 && <circle cx={x} cy={y - 22} r="2.5" fill={numberColor} />}
-      {!note.isRest && note.octave < 0 && <circle cx={x} cy={y + 10} r="2.5" fill={numberColor} />}
-      {note.staccato && !note.isRest && (<circle cx={x} cy={staccatoY} r="2.5" fill={numberColor} />)}
-      {note.beamBreak && isSelected && (<line x1={x - 15} y1={y-40} x2={x-15} y2={y-20} stroke="red" strokeWidth="1" strokeDasharray="2,2" />)}
-      {note.lyric && (<text x={x} y={y + 35} fontSize="14" fontFamily="Arial" textAnchor="middle" fill="#444" style={{ fontStyle: "italic" }}>{note.lyric}</text>)}
+      <rect x={x - 15} y={y - 50} width="30" height="90" fill={boxFill} stroke={boxStroke} strokeWidth="1" rx="4"/>
+      <text x={x} y={y} fontSize={fontSize} fontFamily="monospace" textAnchor="middle" fontWeight={isActiveTrack ? "bold" : "normal"} fill={numberColor}>{note.isRest ? "0" : note.pitch}</text>
+      
+      {!note.isRest && isNumber && note.accidental === 'sharp' && (<line x1={x - 8} y1={y + 6} x2={x + 8} y2={y - 14} stroke={numberColor} strokeWidth="2" opacity="0.8" />)}
+      {!note.isRest && isNumber && note.accidental === 'flat' && (<line x1={x - 8} y1={y - 14} x2={x + 8} y2={y + 6} stroke={numberColor} strokeWidth="2" opacity="0.8" />)}
+      {!note.isRest && isNumber && note.octave > 0 && <circle cx={x} cy={y - 24} r="2.5" fill={numberColor} />}
+      {!note.isRest && isNumber && note.octave < 0 && <circle cx={x} cy={y + 10} r="2.5" fill={numberColor} />}
+      {note.staccato && !note.isRest && isNumber && (<circle cx={x} cy={staccatoY} r="2.5" fill={numberColor} />)}
+      {note.beamBreak && isSelected && isActiveTrack && (<line x1={x - 10} y1={y-30} x2={x-10} y2={y-15} stroke="red" strokeWidth="1" strokeDasharray="2,2" />)}
+      {note.lyric && (<text x={x} y={y + 35} fontSize="12" fontFamily="Arial" textAnchor="middle" fill="#666" style={{ fontStyle: "italic" }}>{note.lyric}</text>)}
     </g>
   );
 };
 
+// --- APLIKASI UTAMA ---
 function App() {
   const [tracks, setTracks] = useState([
-    {
-      id: 1,
-      name: "Suara 1",
-      instrument: "Piano",
-      notes: [{ pitch: 1, octave: 0, duration: 1, isRest: false, lyric: "", slur: false, staccato: false, accidental: null, beamBreak: false }] 
-    }
+    { id: 1, name: "Sopran", instrument: "Piano", notes: [{ pitch: 1, octave: 0, duration: 1, isRest: false, slurLength: 0 }] },
+    { id: 2, name: "Alto", instrument: "Piano", notes: [{ pitch: 3, octave: 0, duration: 1, isRest: false, slurLength: 0 }] },
+    { id: 3, name: "Tenor", instrument: "Piano", notes: [{ pitch: 5, octave: 0, duration: 1, isRest: false, slurLength: 0 }] },
+    { id: 4, name: "Bass", instrument: "Bass", notes: [{ pitch: 1, octave: -1, duration: 1, isRest: false, slurLength: 0 }] }
   ]);
   
   const [history, setHistory] = useState([]); 
   const [future, setFuture] = useState([]);   
-  const [activeTrackIndex, setActiveTrackIndex] = useState(0);
-  const [meta, setMeta] = useState({ title: "Project Baru", composer: "User", tempo: 100, key: "C", timeSig: "4/4" });
+  const [activeTrackIndex, setActiveTrackIndex] = useState(0); 
+  const [meta, setMeta] = useState({ title: "Lagu Rohani", composer: "NN", tempo: 100, key: "C", timeSig: "4/4" });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [playingIndex, setPlayingIndex] = useState(null);
+  
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const lyricInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const paperRef = useRef(null);
   const currentNotes = tracks[activeTrackIndex]?.notes || [];
 
-  // --- HISTORY ---
-  const updateTracksWithHistory = (newTracks) => {
-    const currentSnapshot = JSON.parse(JSON.stringify(tracks));
-    setHistory(prev => [...prev, currentSnapshot]);
-    setFuture([]);
-    setTracks(newTracks);
-  };
+  // JURUS PAKSA CSS RESET
+  useEffect(() => {
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+    document.body.style.display = "block";
+    document.body.style.placeItems = "unset";
+    document.body.style.minWidth = "100%";
+    document.body.style.maxWidth = "none";
+    
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // --- LOGIC ---
+  const updateTracksWithHistory = (newTracks) => { setHistory(p => [...p, JSON.parse(JSON.stringify(tracks))]); setFuture([]); setTracks(newTracks); };
   const handleUndo = () => { if (history.length===0) return; const prev=history[history.length-1]; setFuture(f=>[JSON.parse(JSON.stringify(tracks)), ...f]); setTracks(prev); setHistory(h=>h.slice(0,-1)); };
   const handleRedo = () => { if (future.length===0) return; const next=future[0]; setHistory(h=>[...h, JSON.parse(JSON.stringify(tracks))]); setTracks(next); setFuture(f=>f.slice(1)); };
 
-  // --- TRACK ACTIONS ---
-  const addNewTrack = () => { const newTracks = [...tracks]; newTracks.push({ id: Date.now(), name: `Suara ${tracks.length + 1}`, instrument: "Piano", notes: [{ pitch: 1, octave: 0, duration: 1, isRest: false, lyric: "", slur: false, beamBreak: false }] }); updateTracksWithHistory(newTracks); setActiveTrackIndex(newTracks.length - 1); setSelectedIndex(0); };
-  const deleteTrack = (idx) => { if (tracks.length<=1) return alert("Minimal 1"); if(window.confirm("Hapus?")) { updateTracksWithHistory(tracks.filter((_,i)=>i!==idx)); setActiveTrackIndex(0); }};
-  const renameTrack = (val) => { const n = [...tracks]; n[activeTrackIndex].name = val; setTracks(n); };
-  const changeInstrument = (val) => { const n = [...tracks]; n[activeTrackIndex].instrument = val; setTracks(n); };
-
-  // --- EXPORT MIDI (FITUR BARU) ---
-  const handleExportMIDI = () => {
-    // 1. Buat Objek MIDI Baru
-    const midi = new Midi();
-    midi.name = meta.title;
-    
-    // Set Tempo (ubah dari BPM ke Microseconds per beat otomatis oleh library)
-    midi.header.setTempo(meta.tempo);
-
-    // 2. Loop setiap Track (SATB)
-    tracks.forEach(trackData => {
-      // Tambah Track ke MIDI
-      const track = midi.addTrack();
-      track.name = trackData.name;
-      
-      // Set Instrumen (Program Change)
-      const programNum = GM_INSTRUMENTS[trackData.instrument] || 0;
-      track.instrument.number = programNum; 
-
-      // Hitung Offset Nada (Key Signature + Instrument Octave)
-      const keyShift = KEY_SIGNATURES[meta.key] || 0;
-      const instConfig = INSTRUMENTS[trackData.instrument] || INSTRUMENTS['Piano'];
-      const octaveShift = instConfig.octaveOffset || 0;
-
-      let currentTime = 0; // Waktu dalam detik
-
-      // 3. Loop setiap Note
-      trackData.notes.forEach(note => {
-        // Hitung durasi dalam detik (60 / BPM * ketuk)
-        const durationSec = (60 / meta.tempo) * note.duration;
-
-        if (!note.isRest) {
-          // Mapping Angka ke MIDI Note Number
-          // C4 (Middle C) = 60
-          // Scale Relative Major: 1=0, 2=2, 3=4, 4=5, 5=7, 6=9, 7=11
-          const scaleOffsets = [0, 2, 4, 5, 7, 9, 11]; // Do Re Mi Fa Sol La Si
-          const baseOffset = scaleOffsets[Math.max(0, note.pitch - 1)]; 
-          
-          let midiNote = 60 + baseOffset + (note.octave * 12) + (octaveShift * 12) + keyShift;
-
-          // Handle Accidental
-          if (note.accidental === 'sharp') midiNote += 1;
-          if (note.accidental === 'flat') midiNote -= 1;
-
-          // Handle Staccato (Bunyi pendek, tapi waktu tetap jalan full)
-          const playDuration = note.staccato ? durationSec * 0.5 : durationSec;
-
-          // Tambahkan Note ke Track
-          track.addNote({
-            midi: midiNote,
-            time: currentTime,
-            duration: playDuration,
-            velocity: 0.8 // Volume standar
-          });
-        }
-
-        // Majukan waktu kursor
-        currentTime += durationSec;
-      });
-    });
-
-    // 4. Download File
-    const arrayBuffer = midi.toArray();
-    const blob = new Blob([arrayBuffer], { type: 'audio/midi' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${meta.title}.mid`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const updateNote = (idx, changes) => { 
+    if (idx===null) return; 
+    const n = [...tracks]; 
+    if (!n[activeTrackIndex].notes[idx]) return;
+    n[activeTrackIndex].notes[idx] = { ...n[activeTrackIndex].notes[idx], ...changes }; 
+    updateTracksWithHistory(n); 
   };
 
-  // --- LAYOUT & RENDERERS ---
-  const calculateLayout = () => {
-    let currentX = CONFIG.startX; let currentY = CONFIG.startY; let beatCounter = 0; const beatsPerBar = parseInt(meta.timeSig.split('/')[0]);
-    let layoutItems = []; layoutItems.push({ type: 'barline', x: currentX - 25, y: currentY });
-    currentNotes.forEach((note, index) => {
-      const lyricLength = note.lyric ? note.lyric.length * 9 : 0; const requiredSpace = Math.max(CONFIG.baseSpacing, lyricLength + 20);
-      if (currentX + requiredSpace > CONFIG.canvasWidth - 50) { currentX = CONFIG.startX; currentY += CONFIG.lineHeight; layoutItems.push({ type: 'barline', x: currentX - 25, y: currentY }); }
-      layoutItems.push({ ...note, type: 'note', x: currentX, y: currentY, originalIndex: index });
-      beatCounter += note.duration; 
-      if (beatCounter >= beatsPerBar) { layoutItems.push({ type: 'barline', x: currentX + (requiredSpace / 2) + 20, y: currentY }); beatCounter %= beatsPerBar; }
-      let nextSpacing = requiredSpace; if (note.duration < 0.5 && lyricLength < 20) nextSpacing = CONFIG.baseSpacing * 0.9;
-      currentX += nextSpacing;
-    });
-    return layoutItems;
+  const handleAddNote = () => { 
+    const n = [...tracks]; 
+    n[activeTrackIndex].notes.push({ pitch: 1, octave: 0, duration: 1, isRest: false, lyric: "", slurLength: 0, staccato: false }); 
+    updateTracksWithHistory(n); 
+    setSelectedIndex(n[activeTrackIndex].notes.length-1); 
   };
-  const layoutData = calculateLayout();
-  const renderedNotes = layoutData.filter(item => item.type === 'note');
-  const lastItem = layoutData[layoutData.length - 1];
-  let addButtonX = lastItem ? lastItem.x + 60 : CONFIG.startX; let addButtonY = lastItem ? lastItem.y : CONFIG.startY;
-  if (addButtonX > CONFIG.canvasWidth - 80) { addButtonX = CONFIG.startX; addButtonY += CONFIG.lineHeight; }
-  const totalHeight = Math.max(600, addButtonY + 200);
+  
+  const addNewTrack = () => { const n = [...tracks]; n.push({ id: Date.now(), name: `Suara ${tracks.length + 1}`, instrument: "Piano", notes: [{ pitch: 1, octave: 0, duration: 1, isRest: false, slurLength: 0 }] }); updateTracksWithHistory(n); setActiveTrackIndex(n.length-1); setSelectedIndex(0); };
+  const deleteTrack = (idx) => { if(tracks.length<=1)return; if(window.confirm("Hapus?")){ updateTracksWithHistory(tracks.filter((_,i)=>i!==idx)); setActiveTrackIndex(0); }};
+  const renameTrack = (val) => { const n=[...tracks]; n[activeTrackIndex].name=val; setTracks(n); };
+  const changeInstrument = (val) => { const n=[...tracks]; n[activeTrackIndex].instrument=val; setTracks(n); };
 
-  const renderBeams = () => {
-    const beams = [];
-    const createBeamGroups = (threshold, yOffset) => {
-      let groupStart = null;
-      renderedNotes.forEach((note, index) => {
-        const isEligible = !note.isRest && note.duration <= threshold;
-        const prevNote = renderedNotes[index - 1];
-        const isLineBreak = prevNote && note.y !== prevNote.y;
-        const isForcedBreak = note.beamBreak; 
-        if (isEligible && !isLineBreak && !isForcedBreak) { if (groupStart === null) groupStart = index; } 
-        else { 
-           if (groupStart !== null) {
-              const startNote = renderedNotes[groupStart]; const endNote = renderedNotes[index - 1];
-              beams.push(<line key={`beam-${threshold}-${groupStart}`} x1={startNote.x - 12} y1={startNote.y - yOffset} x2={endNote.x + 12} y2={endNote.y - yOffset} stroke="black" strokeWidth="4" />);
-              groupStart = null;
-           }
-           if (isEligible) groupStart = index;
-        }
-      });
-      if (groupStart !== null) {
-          const startNote = renderedNotes[groupStart]; const endNote = renderedNotes[renderedNotes.length - 1];
-          beams.push(<line key={`beam-${threshold}-${groupStart}-end`} x1={startNote.x - 12} y1={startNote.y - yOffset} x2={endNote.x + 12} y2={endNote.y - yOffset} stroke="black" strokeWidth="4" />);
-      }
-    };
-    createBeamGroups(0.5, 28); createBeamGroups(0.25, 36);
-    return beams;
+  // --- TOOLBAR FUNCTIONS ---
+  const changeDuration = (dur) => selectedIndex !== null && updateNote(selectedIndex, { duration: dur });
+  const changeOctave = (dir) => selectedIndex !== null && updateNote(selectedIndex, { octave: currentNotes[selectedIndex].octave + dir });
+  const toggleBeamBreak = () => selectedIndex !== null && updateNote(selectedIndex, { beamBreak: !currentNotes[selectedIndex].beamBreak });
+  const toggleStaccato = () => selectedIndex !== null && updateNote(selectedIndex, { staccato: !currentNotes[selectedIndex].staccato });
+  const toggleAccidental = (type) => { if(selectedIndex !== null) updateNote(selectedIndex, { accidental: currentNotes[selectedIndex].accidental === type ? null : type }); };
+  const toggleSlur = () => {
+    if (selectedIndex === null) return;
+    const current = currentNotes[selectedIndex].slurLength || 0;
+    let nextLen = current + 1;
+    if (nextLen > 3) nextLen = 0; 
+    updateNote(selectedIndex, { slurLength: nextLen });
   };
 
-  const renderSlurs = () => {
-    return renderedNotes.map((currentNote, idx) => {
-      if (currentNote.slur && idx < renderedNotes.length - 1) {
-        const nextNote = renderedNotes[idx + 1];
-        if (currentNote.y === nextNote.y) {
-          const startX = currentNote.x;
-          const startY = currentNote.y - 55; 
-          const endX = nextNote.x;
-          const endY = nextNote.y - 55;
-          const pathData = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${startY - 30} ${endX} ${endY}`;
-          return <path key={`slur-${idx}`} d={pathData} stroke="black" strokeWidth="1.5" fill="none" />;
-        }
-      }
-      return null;
-    });
-  };
-
-  const updateNote = (idx, changes) => { if (idx===null) return; const n = [...tracks]; const an = [...n[activeTrackIndex].notes]; an[idx] = { ...an[idx], ...changes }; n[activeTrackIndex].notes = an; updateTracksWithHistory(n); };
-  const handleAddNote = () => { const n = [...tracks]; const an = [...n[activeTrackIndex].notes]; an.push({ pitch: 1, octave: 0, duration: 1, beamBreak: false, isRest: false, lyric: "", slur: false }); n[activeTrackIndex].notes = an; updateTracksWithHistory(n); setSelectedIndex(an.length-1); setTimeout(()=>lyricInputRef.current?.focus(),50); };
-  const toggleSlur = () => selectedIndex!==null && updateNote(selectedIndex, { slur: !currentNotes[selectedIndex].slur });
-  const toggleStaccato = () => selectedIndex!==null && updateNote(selectedIndex, { staccato: !currentNotes[selectedIndex].staccato });
-  const toggleBeamBreak = () => selectedIndex!==null && updateNote(selectedIndex, { beamBreak: !currentNotes[selectedIndex].beamBreak });
-  const toggleAccidental = (type) => selectedIndex!==null && updateNote(selectedIndex, { accidental: currentNotes[selectedIndex].accidental===type ? null : type });
-  const changeOctave = (dir) => selectedIndex!==null && updateNote(selectedIndex, { octave: currentNotes[selectedIndex].octave + dir });
-  const changeDuration = (dur) => selectedIndex!==null && updateNote(selectedIndex, { duration: dur });
-  const handleLyricChange = (e) => { const n = [...tracks]; n[activeTrackIndex].notes[selectedIndex].lyric = e.target.value; setTracks(n); }; // Lirik no-history for speed
-  const saveLyricHistory = () => updateTracksWithHistory(tracks);
-
+  // --- AUDIO ENGINE ---
   const playMusic = async () => {
-    Tone.Transport.cancel(); await Tone.start(); Tone.Transport.bpm.value = meta.tempo; const keyShift = KEY_SIGNATURES[meta.key] || 0;
-    tracks.forEach((track, tIdx) => {
-      const inst = INSTRUMENTS[track.instrument] || INSTRUMENTS['Piano']; const synth = new Tone.PolySynth(inst.type, inst.options).toDestination();
-      let time = Tone.Transport.now() + 0.1;
-      track.notes.forEach((note, nIdx) => {
-        if (!note.isRest) {
-          const notes = ['C','D','E','F','G','A','B']; const name = notes[Math.max(0, note.pitch-1)];
-          let freq = Tone.Frequency(name + (4 + note.octave + (inst.octaveOffset||0))).transpose(keyShift);
-          if(note.accidental==='sharp') freq.transpose(1); if(note.accidental==='flat') freq.transpose(-1);
-          synth.triggerAttackRelease(freq, (note.staccato ? 0.5 : 1) * Tone.Time("4n").toSeconds() * note.duration, time);
+    Tone.Transport.cancel(); await Tone.start(); Tone.Transport.bpm.value = meta.tempo; const keyShift = KEY_SIGNATURES[meta.key]||0;
+    tracks.forEach((t, tIdx) => {
+      const inst = INSTRUMENTS[t.instrument]||INSTRUMENTS['Piano']; 
+      const synth = new Tone.PolySynth(inst.type, inst.options).toDestination();
+      let time = Tone.Transport.now()+0.1;
+      
+      t.notes.forEach((n, nIdx) => {
+        if(typeof n.pitch === 'number' && !n.isRest){
+          let totalDuration = n.duration;
+          for(let i = nIdx + 1; i < t.notes.length; i++) {
+             if (t.notes[i].pitch === ".") {
+                totalDuration += t.notes[i].duration;
+             } else {
+                break; 
+             }
+          }
+          const notes=['C','D','E','F','G','A','B']; const name=notes[Math.max(0,n.pitch-1)];
+          let freq=Tone.Frequency(name+(4+n.octave+(inst.octaveOffset||0))).transpose(keyShift);
+          if(n.accidental==='sharp') freq.transpose(1); if(n.accidental==='flat') freq.transpose(-1);
+          synth.triggerAttackRelease(freq, (n.staccato?0.5:1)*Tone.Time("4n").toSeconds()*totalDuration, time);
         }
-        if (tIdx === activeTrackIndex) Tone.Draw.schedule(() => setPlayingIndex(nIdx), time);
-        time += Tone.Time("4n").toSeconds() * note.duration;
+        if(tIdx === activeTrackIndex) Tone.Draw.schedule(()=>setPlayingIndex(nIdx), time);
+        time+=Tone.Time("4n").toSeconds()*n.duration;
       });
     });
     Tone.Transport.start();
   };
 
+  const handleExportMIDI = () => {
+    const midi = new Midi(); midi.name = meta.title; midi.header.setTempo(meta.tempo);
+    tracks.forEach(t => {
+        const tr = midi.addTrack(); tr.name = t.name; tr.instrument.number = GM_INSTRUMENTS[t.instrument]||0;
+        let time=0;
+        t.notes.forEach((n, nIdx) => {
+            const beatDur = 60/meta.tempo;
+            let currentDur = beatDur * n.duration;
+            if(typeof n.pitch === 'number' && !n.isRest){
+                let totalBeats = n.duration;
+                for(let i = nIdx + 1; i < t.notes.length; i++) {
+                   if (t.notes[i].pitch === ".") totalBeats += t.notes[i].duration;
+                   else break;
+                }
+                const scale=[0,2,4,5,7,9,11]; const base=scale[Math.max(0,n.pitch-1)];
+                let mn=60+base+(n.octave*12)+(KEY_SIGNATURES[meta.key]||0);
+                if(n.accidental==='sharp')mn+=1; if(n.accidental==='flat')mn-=1;
+                tr.addNote({ midi: mn, time: time, duration: beatDur * totalBeats, velocity: 0.8 });
+            }
+            time+=currentDur;
+        });
+    });
+    const blob = new Blob([midi.toArray()], {type:'audio/midi'}); const l=document.createElement('a'); l.href=URL.createObjectURL(blob); l.download=`${meta.title}.mid`; document.body.appendChild(l); l.click(); l.remove();
+  };
+
+  // --- LAYOUT ENGINE (PERBAIKAN TINGGI GARIS BIRAMA) ---
+  const calculateScoreLayout = () => {
+    const guideTrack = tracks[activeTrackIndex] || tracks[0];
+    const notes = guideTrack.notes;
+
+    let currentX = CONFIG.startX; 
+    let currentY = CONFIG.startY; 
+    let beatCounter = 0; 
+    const timeSigData = TIME_CONFIG[meta.timeSig] || TIME_CONFIG["4/4"];
+    const beatsPerBar = timeSigData.limit;
+    let barsOnLine = 0; 
+
+    let layoutElements = [];
+    const systemHeight = (tracks.length - 1) * CONFIG.voiceSpacing;
+
+    // --- HELPER: Menggambar Garis Birama Tinggi Penuh ---
+    // y1: currentY - 30 (Naik sedikit di atas Sopran)
+    // y2: currentY + systemHeight + 10 (Turun sedikit di bawah Bass)
+    const addBarline = (xPos) => {
+        layoutElements.push({ 
+            type: 'barline', 
+            x: xPos, 
+            y1: currentY - 30,  // <--- PERBAIKAN: Lebih tinggi dari not Sopran
+            y2: currentY + systemHeight + 10  // <--- PERBAIKAN: Sampai bawah Bass
+        });
+    };
+
+    // Label & Garis Awal
+    tracks.forEach((t, i) => { layoutElements.push({ type: 'label', text: t.name, x: 10, y: currentY + (i * CONFIG.voiceSpacing) }); });
+    addBarline(currentX - 25);
+
+    notes.forEach((noteRef, index) => {
+        const lyricLength = noteRef.lyric ? noteRef.lyric.length * 8 : 0; 
+        const requiredSpace = Math.max(CONFIG.baseSpacing, lyricLength + 15);
+        let nextSpacing = requiredSpace;
+        if (noteRef.duration < 0.5) nextSpacing = CONFIG.baseSpacing * 0.8;
+
+        tracks.forEach((track, trackIdx) => {
+            const note = track.notes[index]; 
+            if (note) {
+                layoutElements.push({ ...note, type: 'note', x: currentX, y: currentY + (trackIdx * CONFIG.voiceSpacing), originalIndex: index, trackIndex: trackIdx });
+            }
+        });
+
+        beatCounter += noteRef.duration; 
+        let extraGap = 0; 
+
+        if (beatCounter >= beatsPerBar - 0.01) {
+            const barLineX = currentX + (requiredSpace / 2) + 20; 
+            addBarline(barLineX); // Gunakan helper barline tinggi
+            
+            beatCounter = 0; 
+            barsOnLine++; 
+
+            if (barsOnLine >= 4) {
+                currentY += systemHeight + CONFIG.systemSpacing; 
+                currentX = CONFIG.startX; 
+                barsOnLine = 0; 
+                
+                tracks.forEach((t, i) => { layoutElements.push({ type: 'label', text: t.name, x: 10, y: currentY + (i * CONFIG.voiceSpacing) }); });
+                addBarline(currentX - 25); // Barline awal sistem baru
+                currentX -= (nextSpacing + extraGap); 
+            } else {
+                extraGap = 30; 
+            }
+        }
+        
+        currentX += nextSpacing + extraGap;
+    });
+
+    return { elements: layoutElements, totalHeight: currentY + systemHeight + 200 };
+  };
+
+  const { elements, totalHeight } = calculateScoreLayout();
+  const renderedNotes = elements.filter(e => e.type === 'note');
+  const lastNote = renderedNotes.filter(n => n.trackIndex === activeTrackIndex).pop();
+  let addButtonX = lastNote ? lastNote.x + 50 : CONFIG.startX;
+  let addButtonY = lastNote ? lastNote.y : CONFIG.startY + (activeTrackIndex * CONFIG.voiceSpacing);
+  if (addButtonX > 1000) { addButtonX = CONFIG.startX; addButtonY += CONFIG.systemSpacing; }
+
+  const renderBeams = () => {
+    const beams = [];
+    const groupSize = (TIME_CONFIG[meta.timeSig] || TIME_CONFIG["4/4"]).groupSize;
+    tracks.forEach((_, tIdx) => {
+        const trackNotes = renderedNotes.filter(n => n.trackIndex === tIdx);
+        const createBeamGroups = (threshold, yOffset) => {
+            let groupStart = null;
+            let countInGroup = 0;
+            trackNotes.forEach((note, i) => {
+                const isNum = typeof note.pitch === 'number';
+                const eligible = !note.isRest && isNum && note.duration <= threshold;
+                const prev = trackNotes[i-1];
+                const isBreak = prev && note.y !== prev.y; 
+                const isManualBreak = note.beamBreak; 
+                const shouldBreakGroup = isBreak || isManualBreak || countInGroup >= groupSize;
+
+                if (shouldBreakGroup) {
+                    if (groupStart !== null) {
+                        const s = trackNotes[groupStart]; const e = trackNotes[i-1];
+                        if (s !== e) {
+                           beams.push(<line key={`b-${tIdx}-${threshold}-${groupStart}`} x1={s.x-10} y1={s.y-yOffset} x2={e.x+10} y2={e.y-yOffset} stroke="black" strokeWidth="4" />);
+                        }
+                        groupStart = null;
+                        countInGroup = 0;
+                    }
+                }
+                if (eligible) {
+                    if (groupStart === null) groupStart = i;
+                    countInGroup++;
+                } else {
+                    if (groupStart !== null) {
+                        const s = trackNotes[groupStart]; const e = trackNotes[i-1];
+                        if (s !== e) {
+                           beams.push(<line key={`b-${tIdx}-${threshold}-${groupStart}`} x1={s.x-10} y1={s.y-yOffset} x2={e.x+10} y2={e.y-yOffset} stroke="black" strokeWidth="4" />);
+                        }
+                        groupStart = null;
+                        countInGroup = 0;
+                    }
+                }
+            });
+            if (groupStart !== null) {
+                const s = trackNotes[groupStart]; const e = trackNotes[trackNotes.length - 1];
+                if (s !== e) {
+                   beams.push(<line key={`b-${tIdx}-${threshold}-${groupStart}-end`} x1={s.x-10} y1={s.y-yOffset} x2={e.x+10} y2={e.y-yOffset} stroke="black" strokeWidth="4" />);
+                }
+            }
+        };
+        createBeamGroups(0.5, 32); 
+        createBeamGroups(0.25, 40); 
+    });
+    return beams;
+  };
+
+  const renderSlurs = () => {
+      const slurs = [];
+      tracks.forEach((_, tIdx) => {
+          const trackNotes = renderedNotes.filter(n => n.trackIndex === tIdx);
+          trackNotes.forEach((n, i) => {
+            const len = n.slurLength || 0;
+            if (len > 0) {
+              const targetIndex = i + len; 
+              if (targetIndex < trackNotes.length) {
+                 const target = trackNotes[targetIndex];
+                 if (n.y === target.y) {
+                    const sx = n.x; const sy = n.y - 55; const ex = target.x; const ey = target.y - 55;
+                    slurs.push(<path key={`s-${tIdx}-${i}`} d={`M ${sx} ${sy} Q ${(sx+ex)/2} ${sy-40} ${ex} ${ey}`} stroke="black" strokeWidth="1.5" fill="none"/>);
+                 }
+              }
+            }
+          });
+      });
+      return slurs;
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; if (selectedIndex === null) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; 
       const key = e.key.toLowerCase();
-      if ((e.ctrlKey||e.metaKey) && key==='z') { e.preventDefault(); handleUndo(); return; }
-      if ((e.ctrlKey||e.metaKey) && key==='y') { e.preventDefault(); handleRedo(); return; }
+      if (e.shiftKey && e.key === 'ArrowDown') { setActiveTrackIndex(p => Math.min(p+1, tracks.length-1)); return; }
+      if (e.shiftKey && e.key === 'ArrowUp') { setActiveTrackIndex(p => Math.max(0, p-1)); return; }
+      if (selectedIndex === null) return;
       if (['1','2','3','4','5','6','7'].includes(key)) updateNote(selectedIndex, { pitch: parseInt(key), isRest: false });
       if (key==='0') updateNote(selectedIndex, { isRest: true });
-      if (e.key==='ArrowUp') updateNote(selectedIndex, { octave: currentNotes[selectedIndex].octave+1 });
-      if (e.key==='ArrowDown') updateNote(selectedIndex, { octave: currentNotes[selectedIndex].octave-1 });
-      if (key==='q') updateNote(selectedIndex, { duration: 1 }); if (key==='w') updateNote(selectedIndex, { duration: 0.5 }); if (key==='e') updateNote(selectedIndex, { duration: 0.25 });
-      if (key==='l') toggleSlur(); if (key==='s') toggleStaccato(); if (key==='b') toggleBeamBreak();
-      if (e.key==='ArrowRight') setSelectedIndex(p => Math.min(p+1, currentNotes.length-1));
-      if (e.key==='ArrowLeft') setSelectedIndex(p => Math.max(p-1, 0));
+      if (key==='.') updateNote(selectedIndex, { pitch: ".", isRest: false });
+      if (e.key==='ArrowRight') setSelectedIndex(p => Math.min(p+1, tracks[activeTrackIndex].notes.length-1));
+      if (e.key==='ArrowLeft') setSelectedIndex(p => Math.max(0, p-1));
       if (e.key==='Enter') handleAddNote();
-      if (e.key==='Backspace' && currentNotes.length>1) { const n=[...tracks]; n[activeTrackIndex].notes.splice(selectedIndex,1); updateTracksWithHistory(n); setSelectedIndex(p=>Math.max(0,p-1)); }
+      if (e.key==='Backspace') { const n=[...tracks]; n[activeTrackIndex].notes.splice(selectedIndex,1); updateTracksWithHistory(n); setSelectedIndex(p=>Math.max(0,p-1)); }
       if (e.key===' ') { e.preventDefault(); playMusic(); }
     };
     window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tracks, activeTrackIndex, selectedIndex, meta, history, future]);
+  }, [tracks, activeTrackIndex, selectedIndex, meta]);
 
   const saveProject = () => { const dl = document.createElement('a'); dl.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ meta, tracks })); dl.download = meta.title + ".json"; dl.click(); };
   const triggerLoad = () => fileInputRef.current.click();
-  const handleFileChange = (e) => { const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>{ try{const d=JSON.parse(ev.target.result); if(d.tracks) setTracks(d.tracks); setMeta(d.meta||{title:"Unt", composer:"", tempo:100, key:"C", timeSig:"4/4"}); setActiveTrackIndex(0); setSelectedIndex(0);}catch(e){alert("Err");} }; r.readAsText(f); e.target.value=null; };
-  const handleExportImage = async () => { if(paperRef.current) { setSelectedIndex(null); const c = await html2canvas(paperRef.current, { scale: 2, backgroundColor: "#ffffff", ignoreElements: (el) => el.classList.contains('no-print') }); const l = document.createElement("a"); l.href = c.toDataURL("image/png"); l.download = "partitur.png"; l.click(); } };
+  const handleFileChange = (e) => { const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>{ try{const d=JSON.parse(ev.target.result); if(d.tracks) setTracks(d.tracks); setMeta(d.meta||{title:"Unt", composer:"", tempo:100, key:"C", timeSig:"4/4"}); }catch(e){alert("Err");} }; r.readAsText(f); e.target.value=null; };
+  const handleExportImage = async () => { if(paperRef.current) { setSelectedIndex(null); const c = await html2canvas(paperRef.current, { scale: 2, backgroundColor: "#ffffff" }); const l = document.createElement("a"); l.href = c.toDataURL("image/png"); l.download = "partitur.png"; l.click(); } };
 
   return (
-    <div style={{ padding: "30px", fontFamily: "Arial", backgroundColor: "#f4f4f9", minHeight: "100vh", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ position: "sticky", top: "10px", zIndex: 100, background: "white", padding: "10px 20px", borderRadius: "10px", boxShadow: "0 5px 20px rgba(0,0,0,0.1)", width: "100%", maxWidth: CONFIG.canvasWidth, display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <button onClick={playMusic} style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#4CAF50", color: "white", border: "none", fontSize: "16px", cursor: "pointer" }}>▶</button>
-            <input ref={lyricInputRef} type="text" value={currentNotes[selectedIndex]?.lyric || ""} onChange={handleLyricChange} onBlur={saveLyricHistory} placeholder="Lirik..." style={{ border: "1px solid #ccc", borderRadius: "5px", padding: "8px", width: "150px" }}/>
-          </div>
-          <div style={{ display: "flex", gap: "5px", borderRight:"1px solid #ddd", paddingRight:"10px" }}>
-             <button onClick={handleUndo} disabled={history.length===0} style={{ opacity: history.length===0?0.3:1 }}>↩</button>
-             <button onClick={handleRedo} disabled={future.length===0} style={{ opacity: future.length===0?0.3:1 }}>↪</button>
+    <div style={{ padding: "20px", fontFamily: "Arial", backgroundColor: "#f4f4f9", minHeight: "100vh", width: "100vw", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+      <div style={{ position: "sticky", top: "10px", zIndex: 100, background: "white", padding: "10px 20px", borderRadius: "10px", boxShadow: "0 5px 20px rgba(0,0,0,0.1)", marginBottom: "20px", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={playMusic} style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#4CAF50", color: "white", border: "none", fontSize: "16px", cursor: "pointer", paddingLeft: "15px" }}>▶</button>
+            <input ref={lyricInputRef} type="text" value={tracks[activeTrackIndex].notes[selectedIndex]?.lyric || ""} onChange={(e)=>updateNote(selectedIndex, {lyric: e.target.value})} placeholder="Lirik (Track Aktif)..." style={{ border: "1px solid #ccc", borderRadius: "5px", padding: "8px", width: "150px" }}/>
           </div>
           <div style={{ display: "flex", gap: "5px" }}>
-             <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display:'none'}} accept=".json" />
-             <button onClick={triggerLoad} style={{ background: "#f0f0f0", border: "1px solid #ccc", padding: "5px 10px", borderRadius: "5px", cursor: "pointer" }}>📂</button>
-             <button onClick={saveProject} style={{ background: "#607D8B", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px", cursor: "pointer" }}>💾</button>
-             <button onClick={handleExportImage} style={{ background: "#FF9800", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px", cursor: "pointer" }}>📷</button>
-             {/* TOMBOL MIDI BARU */}
-             <button onClick={handleExportMIDI} style={{ background: "#3F51B5", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>🎹 MIDI</button>
+             <button onClick={handleUndo} style={{ padding: "5px 10px" }}>↩</button>
+             <button onClick={handleRedo} style={{ padding: "5px 10px" }}>↪</button>
+             <button onClick={saveProject} style={{ background: "#607D8B", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px" }}>💾</button>
+             <button onClick={handleExportImage} style={{ background: "#FF9800", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px" }}>📷</button>
+             <button onClick={handleExportMIDI} style={{ background: "#3F51B5", color: "white", padding: "5px 10px", border: "none", borderRadius: "5px", fontWeight: "bold" }}>🎹</button>
           </div>
         </div>
-        <hr style={{width: "100%", border: "0", borderTop: "1px solid #eee", margin: "0"}}/>
-        <div style={{ display: "flex", alignItems: "center", gap: "5px", overflowX: "auto", paddingBottom: "5px" }}>
-            {tracks.map((track, idx) => ( <div key={track.id}><button onClick={() => { setActiveTrackIndex(idx); setSelectedIndex(0); }} style={{ padding: "8px 15px", borderRadius: "5px 5px 0 0", border: "none", cursor: "pointer", fontWeight: "bold", background: activeTrackIndex === idx ? "#2196F3" : "#e0e0e0", color: activeTrackIndex === idx ? "white" : "#666", borderBottom: activeTrackIndex === idx ? "3px solid #0D47A1" : "none" }}>{track.name}</button></div> ))}
-            <button onClick={addNewTrack} style={{ padding: "5px 10px", borderRadius: "5px", border: "1px dashed #999", background: "transparent", cursor: "pointer", color: "#666" }}>+ Suara</button>
+        <div style={{ display: "flex", gap: "5px", overflowX: "auto", paddingBottom: "10px", borderBottom: "1px solid #eee" }}>
+            {tracks.map((track, idx) => ( <button key={track.id} onClick={() => { setActiveTrackIndex(idx); setSelectedIndex(0); }} style={{ padding: "5px 15px", border: "none", cursor: "pointer", background: activeTrackIndex === idx ? "#2196F3" : "#e0e0e0", color: activeTrackIndex === idx ? "white" : "#666", borderRadius: "20px", fontWeight: "bold" }}>{track.name}</button> ))}
+            <button onClick={addNewTrack} style={{ padding: "5px 10px", borderRadius: "20px", border: "1px dashed #999", background: "white", cursor: "pointer" }}>+ Suara</button>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", background: "#E3F2FD", padding: "10px", borderRadius: "5px", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", flexWrap: "wrap", gap: "10px", background: "#E3F2FD", padding: "10px", borderRadius: "5px" }}>
            <div style={{display: "flex", gap: "10px", alignItems: "center"}}>
               <select value={tracks[activeTrackIndex].instrument||'Piano'} onChange={(e)=>changeInstrument(e.target.value)} style={{border:"1px solid #1976D2", borderRadius:"4px", padding:"5px"}}>{Object.keys(INSTRUMENTS).map(k=><option key={k} value={k}>{k}</option>)}</select>
-              <input type="text" value={tracks[activeTrackIndex].name} onChange={(e) => renameTrack(e.target.value)} style={{ border: "1px solid #90CAF9", padding: "5px", borderRadius: "4px", width: "100px" }}/>
-              <button onClick={() => deleteTrack(activeTrackIndex)} style={{ background: "#FFCDD2", color: "#C62828", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>Hapus</button>
+              <input type="text" value={tracks[activeTrackIndex].name} onChange={(e) => renameTrack(e.target.value)} style={{ border: "1px solid #90CAF9", padding: "5px", borderRadius: "4px", width: "80px" }}/>
+              <button onClick={() => deleteTrack(activeTrackIndex)} style={{ background: "#FFCDD2", color: "#C62828", border: "none", padding: "5px 10px", borderRadius: "4px" }}>Hapus</button>
            </div>
-           <div style={{ display: "flex", gap: "5px" }}>
-                <button onClick={() => changeOctave(1)} style={{ padding: "2px 8px" }}>⬆</button>
-                <button onClick={() => changeOctave(-1)} style={{ padding: "2px 8px" }}>⬇</button>
+           
+           <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                <button onClick={() => changeOctave(1)} style={{ padding: "2px 8px", cursor: "pointer" }}>⬆</button>
+                <button onClick={() => changeOctave(-1)} style={{ padding: "2px 8px", cursor: "pointer" }}>⬇</button>
                 <div style={{width: "1px", background:"#bbb", margin: "0 5px"}}></div>
-                <button onClick={() => changeDuration(1)} style={{ padding: "2px 8px" }}>Normal</button>
-                <button onClick={() => changeDuration(0.5)} style={{ padding: "2px 8px" }}>1/8</button>
-                <button onClick={() => changeDuration(0.25)} style={{ padding: "2px 8px" }}>1/16</button>
-                <button onClick={toggleBeamBreak} style={{ padding: "2px 8px", cursor: "pointer", background: currentNotes[selectedIndex]?.beamBreak ? "#FFAB91" : "#f0f0f0", fontWeight: "bold" }} title="Putus Bendera">||</button>
+                
+                <button onClick={() => updateNote(selectedIndex, { pitch: ".", duration: 1, isRest: false })} style={{ padding: "2px 8px", cursor: "pointer", fontWeight: "bold", fontSize: "18px" }}>.</button>
+                
+                <button onClick={() => changeDuration(0.5)} style={{ padding: "2px 8px", cursor: "pointer" }}>1/8</button>
+                <button onClick={() => changeDuration(0.25)} style={{ padding: "2px 8px", cursor: "pointer" }}>1/16</button>
+                <button onClick={toggleBeamBreak} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.beamBreak ? "#FFAB91" : "#f0f0f0", fontWeight: "bold" }}>||</button>
                 <div style={{width: "1px", background:"#bbb", margin: "0 5px"}}></div>
-                <button onClick={toggleSlur} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.slur ? "#BBDEFB" : "#f0f0f0" }}>⌒</button>
-                <button onClick={toggleStaccato} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.staccato ? "#E1BEE7" : "#f0f0f0" }}>.</button>
+                <button onClick={toggleSlur} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.slurLength > 0 ? "#BBDEFB" : "#f0f0f0", fontWeight: "bold" }}>⌒</button>
+                <button onClick={toggleStaccato} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.staccato ? "#E1BEE7" : "#f0f0f0", fontWeight: "bold" }}>.</button>
                 <div style={{width: "1px", background:"#bbb", margin: "0 5px"}}></div>
                 <button onClick={() => toggleAccidental('sharp')} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.accidental === 'sharp' ? "#FFF59D" : "#f0f0f0" }}>/</button>
                 <button onClick={() => toggleAccidental('flat')} style={{ padding: "2px 8px", background: currentNotes[selectedIndex]?.accidental === 'flat' ? "#FFF59D" : "#f0f0f0" }}>\</button>
@@ -344,27 +424,29 @@ function App() {
            </div>
         </div>
       </div>
-      <div ref={paperRef} style={{ marginTop: "20px", background: "white", width: CONFIG.canvasWidth + "px", minHeight: "500px", padding: "40px", boxShadow: "0 5px 15px rgba(0,0,0,0.05)", borderRadius: "8px" }}>
+      <div ref={paperRef} style={{ background: "white", width: "100%", minHeight: "600px", padding: "40px", boxShadow: "0 5px 15px rgba(0,0,0,0.05)", borderRadius: "8px", boxSizing: "border-box" }}>
         <div style={{ textAlign: "center", marginBottom: "30px", borderBottom: "1px solid #eee", paddingBottom: "20px" }}>
-          <input type="text" value={meta.title} onChange={(e)=>setMeta({...meta, title:e.target.value})} style={{fontSize: "28px", fontWeight:"bold", textAlign:"center", border:"none", width:"100%", outline:"none"}} />
-          <input type="text" value={meta.composer} onChange={(e)=>setMeta({...meta, composer:e.target.value})} style={{fontSize: "14px", textAlign:"center", border:"none", width:"100%", outline:"none", color:"#666", marginBottom: "15px"}} />
-          <div style={{ display: "flex", justifyContent: "center", gap: "20px", alignItems: "center" }} className="no-print"> 
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "#f9f9f9", padding: "5px 10px", borderRadius: "5px" }}>
-              <span style={{ color: "#555", fontWeight: "bold" }}>Do =</span><select value={meta.key} onChange={(e) => setMeta({...meta, key: e.target.value})} style={{ border: "none", background: "transparent", fontSize: "16px", fontWeight: "bold", cursor: "pointer", outline: "none" }}>{Object.keys(KEY_SIGNATURES).map(k => <option key={k} value={k}>{k}</option>)}</select>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "#f9f9f9", padding: "5px 10px", borderRadius: "5px" }}><select value={meta.timeSig} onChange={(e) => setMeta({...meta, timeSig: e.target.value})} style={{ border: "none", background: "transparent", fontSize: "16px", fontWeight: "bold", cursor: "pointer", outline: "none" }}><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="6/8">6/8</option></select></div>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "14px", color: "#666" }}><span>Tempo: {meta.tempo}</span><input type="range" min="60" max="200" value={meta.tempo} onChange={(e) => setMeta({...meta, tempo: e.target.value})} style={{width: "60px"}} /></div>
+          <input type="text" value={meta.title} onChange={(e)=>setMeta({...meta, title:e.target.value})} style={{fontSize: "32px", fontWeight:"bold", textAlign:"center", border:"none", width:"100%", outline:"none"}} />
+          <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginTop: "10px" }} className="no-print"> 
+             <select value={meta.key} onChange={(e) => setMeta({...meta, key: e.target.value})}>{Object.keys(KEY_SIGNATURES).map(k=><option key={k} value={k}>Do={k}</option>)}</select>
+             <select value={meta.timeSig} onChange={(e) => setMeta({...meta, timeSig: e.target.value})}>
+                {Object.keys(TIME_CONFIG).map(t => <option key={t} value={t}>{t}</option>)}
+             </select>
           </div>
         </div>
-        <div style={{ marginBottom: "20px", color: "#555", fontStyle: "italic", fontWeight: "bold" }}>Partitur: {tracks[activeTrackIndex].name} ({tracks[activeTrackIndex].instrument})</div>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display:'none'}} accept=".json" />
+        <div className="no-print" style={{textAlign:"center", marginBottom: "10px"}}>
+            <button onClick={triggerLoad} style={{background: "#f0f0f0", border: "1px solid #ccc", padding: "5px 15px", borderRadius: "20px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", color: "#555"}}>📂 Buka File Project (.json)</button>
+        </div>
         <svg width="100%" height={totalHeight}>
-          {layoutData.map((item, index) => { if (item.type === 'barline') return <line key={`bar-${index}`} x1={item.x} y1={item.y - 40} x2={item.x} y2={item.y + 40} stroke="#ccc" strokeWidth="2" />; return null; })}
+          {elements.filter(e => e.type === 'barline').map((item, index) => ( <line key={`bar-${index}`} x1={item.x} y1={item.y1} x2={item.x} y2={item.y2} stroke="#ccc" strokeWidth="2" /> ))}
+          {elements.filter(e => e.type === 'label').map((item, index) => ( <text key={`lbl-${index}`} x={item.x} y={item.y} fontSize="14" fill="#888" fontWeight="bold" dominantBaseline="middle">{item.text}</text> ))}
+          {renderedNotes.map((item, i) => ( <CipherNote key={`note-${item.trackIndex}-${item.originalIndex}`} note={item} x={item.x} y={item.y} isActiveTrack={item.trackIndex === activeTrackIndex} isSelected={item.trackIndex === activeTrackIndex && item.originalIndex === selectedIndex} isPlaying={item.trackIndex === activeTrackIndex && item.originalIndex === playingIndex} onClick={() => { setActiveTrackIndex(item.trackIndex); setSelectedIndex(item.originalIndex); lyricInputRef.current.focus(); }} /> ))}
           {renderBeams()}
-          {renderedNotes.map((item) => ( <CipherNote key={`note-${item.originalIndex}`} note={item} x={item.x} y={item.y} isSelected={item.originalIndex === selectedIndex} isPlaying={item.originalIndex === playingIndex} onClick={() => { setSelectedIndex(item.originalIndex); lyricInputRef.current.focus(); }} /> ))}
           {renderSlurs()}
           <g className="no-print" onClick={handleAddNote} style={{ cursor: "pointer", opacity: 0.6 }} onMouseEnter={(e)=>e.currentTarget.style.opacity=1} onMouseLeave={(e)=>e.currentTarget.style.opacity=0.6}>
-            <circle cx={addButtonX} cy={addButtonY - 5} r="18" fill="#2196F3" />
-            <text x={addButtonX} y={addButtonY} fill="white" fontSize="24" fontWeight="bold" textAnchor="middle" dy="8">+</text>
+            <circle cx={addButtonX} cy={addButtonY - 5} r="15" fill="#2196F3" />
+            <text x={addButtonX} y={addButtonY} fill="white" fontSize="20" fontWeight="bold" textAnchor="middle" dy="6">+</text>
           </g>
         </svg>
       </div>
